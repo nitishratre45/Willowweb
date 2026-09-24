@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CricZone Live Sports Player</title>
+    <title>CricZone Live Player (Cookie Enabled)</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.3.5/shaka-player.compiled.js"></script>
+    <!-- HLS.js for .m3u8 streams -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 
     <style>
         :root {
@@ -138,7 +139,7 @@
         </div>
 
         <div class="player-info">
-            <span class="active-title" id="currentChannelName">Loading Playlist...</span>
+            <span class="active-title" id="currentChannelName">Loading Channels...</span>
             <button onclick="reloadCurrentStream()" style="background:transparent; border:none; color:#fff; cursor:pointer;">
                 <i class="fa-solid fa-rotate-right"></i> Reload
             </button>
@@ -158,20 +159,24 @@
         const M3U_URL = "https://raw.githubusercontent.com/srhady/willow-event/refs/heads/main/live_sports.m3u";
         const PROXY = "https://corsproxy.io/?";
 
-        // Extra Manual Sony Channels
+        // Sony Channels with Custom Cookie and Header Configuration
         const customChannels = [
             {
                 name: "Sony Sports Ten 2 HD (1080p)",
-                stream_url: "https://cloudplay-sonyliv.pages.dev/ten2hd.m3u8"
+                stream_url: "https://cloudplay-sonyliv.pages.dev/ten2hd.m3u8",
+                cookie: "hdntl=exp=1750000000~acl=/*~hmac=authtokenkey;", // Aapki stream cookie Yahan paste karein
+                referer: "https://cloudplay-sonyliv.pages.dev/"
             },
             {
                 name: "Sony Sports Ten 3 Hindi (1080p)",
-                stream_url: "https://cloudplay-sonyliv.pages.dev/ten3.m3u8"
+                stream_url: "https://cloudplay-sonyliv.pages.dev/ten3.m3u8",
+                cookie: "hdntl=exp=1750000000~acl=/*~hmac=authtokenkey;", // Aapki stream cookie Yahan paste karein
+                referer: "https://cloudplay-sonyliv.pages.dev/"
             }
         ];
 
         let allChannels = [];
-        let shakaPlayer = null;
+        let hlsPlayer = null;
         let currentChannel = null;
 
         const videoPlayer = document.getElementById('videoPlayer');
@@ -179,39 +184,23 @@
         const channelNameLabel = document.getElementById('currentChannelName');
         const channelsGrid = document.getElementById('channelsList');
 
-        async function initShaka() {
-            shaka.polyfill.installAll();
-            if (shaka.Player.isBrowserSupported()) {
-                shakaPlayer = new shaka.Player(videoPlayer);
-            }
-        }
-
         async function loadM3UData() {
             let fetchedChannels = [];
-
             try {
-                let res = await fetch(M3U_URL);
-                if (!res.ok) throw new Error("Direct Fetch Failed");
-                let text = await res.text();
-                fetchedChannels = parseM3U(text);
-            } catch (e) {
-                try {
-                    let res = await fetch(PROXY + encodeURIComponent(M3U_URL));
+                let res = await fetch(PROXY + encodeURIComponent(M3U_URL));
+                if (res.ok) {
                     let text = await res.text();
                     fetchedChannels = parseM3U(text);
-                } catch (err) {
-                    console.log("M3U fetch failed, loading custom channels only.");
                 }
-            }
+            } catch (err) {}
 
-            // Combine M3U Channels + Sony Channels
-            allChannels = [...fetchedChannels, ...customChannels];
+            allChannels = [...customChannels, ...fetchedChannels];
 
             if (allChannels.length > 0) {
                 renderChannels(allChannels);
                 playChannel(allChannels[0], document.querySelector('.channel-card'));
             } else {
-                channelsGrid.innerHTML = `<div class="status-msg" style="color:#ff4d4d;">Koi channel load nahi hua!</div>`;
+                channelsGrid.innerHTML = `<div class="status-msg" style="color:#ff4d4d;">Channels Available Nahi Hain!</div>`;
             }
         }
 
@@ -225,14 +214,15 @@
                 if (line.startsWith('#EXTINF:')) {
                     const parts = line.split(',');
                     current.name = parts[1] ? parts[1].trim() : 'Live Channel';
-                } else if (line.includes('license_key=') || line.includes('clearkey=')) {
-                    let keyStr = line.split('=')[1] || '';
-                    keyStr = keyStr.replace(/"/g, '').trim();
-                    if (keyStr.includes(':')) {
-                        const [kId, kVal] = keyStr.split(':');
-                        current.key_id = kId;
-                        current.key = kVal;
-                    }
+                } else if (line.startsWith('#EXTVLCOPT:http-user-agent=')) {
+                    current.userAgent = line.split('=')[1];
+                } else if (line.startsWith('#EXTVLCOPT:http-referrer=')) {
+                    current.referer = line.split('=')[1];
+                } else if (line.startsWith('#EXTHTTP:')) {
+                    try {
+                        let jsonHeader = JSON.parse(line.replace('#EXTHTTP:', ''));
+                        if (jsonHeader.cookie) current.cookie = jsonHeader.cookie;
+                    } catch(e) {}
                 } else if (line.startsWith('http://') || line.startsWith('https://')) {
                     current.stream_url = line;
                     channels.push(current);
@@ -253,40 +243,53 @@
             });
         }
 
-        async function playChannel(channel, cardElement) {
+        function playChannel(channel, cardElement) {
             currentChannel = channel;
             channelNameLabel.innerText = channel.name || "Live Stream";
 
             document.querySelectorAll('.channel-card').forEach(c => c.classList.remove('active'));
             if (cardElement) cardElement.classList.add('active');
 
-            const streamUrl = channel.stream_url;
-
-            if (streamUrl && (streamUrl.includes('player') || streamUrl.includes('embed') || streamUrl.includes('pages.dev') && !streamUrl.endsWith('.m3u8'))) {
-                videoPlayer.style.display = 'none';
-                iframePlayer.style.display = 'block';
-                if(shakaPlayer) await shakaPlayer.unload();
-                iframePlayer.src = streamUrl;
-                return;
+            if (hlsPlayer) {
+                hlsPlayer.destroy();
+                hlsPlayer = null;
             }
+
+            const streamUrl = channel.stream_url;
 
             iframePlayer.style.display = 'none';
             iframePlayer.src = '';
             videoPlayer.style.display = 'block';
 
-            try {
-                await shakaPlayer.unload();
-                if (channel.key_id && channel.key) {
-                    const clearKeys = {};
-                    clearKeys[channel.key_id] = channel.key;
-                    shakaPlayer.configure({ drm: { clearKeys: clearKeys } });
-                } else {
-                    shakaPlayer.configure({ drm: { clearKeys: {} } });
+            if (Hls.isSupported()) {
+                hlsPlayer = new Hls({
+                    xhrSetup: function (xhr, url) {
+                        xhr.withCredentials = true; // Cookie sending support
+                        
+                        // Custom Header / Cookie Proxy Injection
+                        if (channel.cookie) {
+                            xhr.setRequestHeader('X-Set-Cookie', channel.cookie);
+                        }
+                        if (channel.referer) {
+                            xhr.setRequestHeader('X-Alt-Referer', channel.referer);
+                        }
+                    }
+                });
+
+                // Final proxy URL with credentials
+                let targetUrl = streamUrl;
+                if (channel.cookie) {
+                    targetUrl += (targetUrl.includes('?') ? '&' : '?') + "cookie=" + encodeURIComponent(channel.cookie);
                 }
-                await shakaPlayer.load(streamUrl);
+
+                hlsPlayer.loadSource(PROXY + encodeURIComponent(targetUrl));
+                hlsPlayer.attachMedia(videoPlayer);
+                hlsPlayer.on(Hls.Events.MANIFEST_PARSED, function () {
+                    videoPlayer.play().catch(e => console.log(e));
+                });
+            } else if (videoPlayer.canPlayType('application/vnd.apple.mpegurl')) {
+                videoPlayer.src = streamUrl;
                 videoPlayer.play();
-            } catch (e) {
-                console.error("Playback Error:", e);
             }
         }
 
@@ -303,7 +306,6 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            initShaka();
             loadM3UData();
         });
     </script>
