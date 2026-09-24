@@ -3,30 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Sports Player (ClearKey DRM Supported)</title>
-    <!-- FontAwesome Icons -->
+    <title>CricZone Live Player (Hybrid M3U + JSON)</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Shaka Player for DRM / HLS / DASH Support -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.3.5/shaka-player.compiled.js"></script>
 
     <style>
         :root {
-            --primary-color: #00ff87;
-            --bg-color: #080c14;
+            --primary: #00ff87;
+            --bg: #080c14;
             --card-bg: rgba(22, 30, 46, 0.9);
-            --border-color: rgba(255, 255, 255, 0.1);
+            --border: rgba(255, 255, 255, 0.1);
         }
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
-            background-color: var(--bg-color);
-            color: #ffffff;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: #fff;
+            font-family: sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -37,7 +31,7 @@
             width: 100%;
             height: 60px;
             background: rgba(8, 12, 20, 0.95);
-            border-bottom: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border);
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -47,14 +41,7 @@
             z-index: 100;
         }
 
-        .logo {
-            font-size: 20px;
-            font-weight: bold;
-            color: var(--primary-color);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
+        .logo { font-size: 20px; font-weight: bold; color: var(--primary); display: flex; align-items: center; gap: 8px; }
 
         .container {
             width: 100%;
@@ -72,56 +59,36 @@
             background: #000;
             border-radius: 12px;
             overflow: hidden;
-            border: 1px solid var(--border-color);
+            border: 1px solid var(--border);
             box-shadow: 0 10px 30px rgba(0,0,0,0.8);
         }
 
-        video, iframe {
-            width: 100%;
-            height: 100%;
-            border: none;
-            background: #000;
-        }
+        video, iframe { width: 100%; height: 100%; border: none; background: #000; }
 
         .player-info {
             background: var(--card-bg);
             padding: 12px 18px;
             border-radius: 8px;
-            border: 1px solid var(--border-color);
+            border: 1px solid var(--border);
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
 
-        .active-title {
-            font-size: 16px;
-            font-weight: bold;
-            color: var(--primary-color);
-        }
+        .active-title { font-size: 16px; font-weight: bold; color: var(--primary); }
 
-        .search-box {
-            width: 100%;
-            position: relative;
-        }
-
+        .search-box { position: relative; width: 100%; }
         .search-box input {
             width: 100%;
             padding: 12px 40px 12px 15px;
             border-radius: 8px;
-            border: 1px solid var(--border-color);
+            border: 1px solid var(--border);
             background: var(--card-bg);
             color: #fff;
             font-size: 14px;
             outline: none;
         }
-
-        .search-box i {
-            position: absolute;
-            right: 15px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #aaa;
-        }
+        .search-box i { position: absolute; right: 15px; top: 50%; transform: translateY(-50%); color: #aaa; }
 
         .channels-grid {
             display: grid;
@@ -129,12 +96,11 @@
             gap: 10px;
             max-height: 400px;
             overflow-y: auto;
-            padding-right: 5px;
         }
 
         .channel-card {
             background: var(--card-bg);
-            border: 1px solid var(--border-color);
+            border: 1px solid var(--border);
             padding: 12px;
             border-radius: 8px;
             cursor: pointer;
@@ -146,30 +112,17 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 8px;
+            gap: 6px;
             min-height: 75px;
         }
 
         .channel-card:hover, .channel-card.active {
-            border-color: var(--primary-color);
+            border-color: var(--primary);
             background: rgba(0, 255, 135, 0.15);
-            color: var(--primary-color);
+            color: var(--primary);
         }
 
-        .badge {
-            font-size: 10px;
-            background: rgba(255, 255, 255, 0.1);
-            padding: 2px 6px;
-            border-radius: 4px;
-            color: #ccc;
-        }
-
-        .status-msg {
-            text-align: center;
-            color: var(--primary-color);
-            font-size: 14px;
-            padding: 20px;
-        }
+        .status-msg { text-align: center; color: var(--primary); font-size: 14px; padding: 20px; }
     </style>
 </head>
 <body>
@@ -179,34 +132,33 @@
     </header>
 
     <div class="container">
-        <!-- Main Video Screen Container -->
         <div class="player-wrapper">
             <video id="videoPlayer" controls autoplay playsinline style="display: none;"></video>
             <iframe id="iframePlayer" allowfullscreen allow="autoplay" style="display: none;"></iframe>
         </div>
 
         <div class="player-info">
-            <span class="active-title" id="currentChannelName">Loading API Channels...</span>
+            <span class="active-title" id="currentChannelName">Loading Channels...</span>
             <button onclick="reloadCurrentStream()" style="background:transparent; border:none; color:#fff; cursor:pointer;">
                 <i class="fa-solid fa-rotate-right"></i> Reload
             </button>
         </div>
 
-        <!-- Search Bar -->
         <div class="search-box">
             <input type="text" id="searchInput" placeholder="Channel Khojein..." onkeyup="filterChannels()">
             <i class="fa-solid fa-magnifying-glass"></i>
         </div>
 
-        <!-- Dynamic Grid Channels -->
         <div class="channels-grid" id="channelsList">
-            <div class="status-msg"><i class="fa-solid fa-spinner fa-spin"></i> Fetching live channel list...</div>
+            <div class="status-msg"><i class="fa-solid fa-spinner fa-spin"></i> Loading Channels...</div>
         </div>
     </div>
 
     <script>
-        const API_URL = "https://raw.githubusercontent.com/srhady/willow-event/refs/heads/main/live_sports.json";
-        
+        const JSON_URL = "https://raw.githubusercontent.com/srhady/willow-event/refs/heads/main/live_sports.json";
+        const M3U_URL = "https://raw.githubusercontent.com/srhady/willow-event/refs/heads/main/live_sports.m3u";
+        const PROXY = "https://corsproxy.io/?";
+
         let allChannels = [];
         let shakaPlayer = null;
         let currentChannel = null;
@@ -216,70 +168,95 @@
         const channelNameLabel = document.getElementById('currentChannelName');
         const channelsGrid = document.getElementById('channelsList');
 
-        // Shaka Player Initialization
         async function initShaka() {
             shaka.polyfill.installAll();
             if (shaka.Player.isBrowserSupported()) {
                 shakaPlayer = new shaka.Player(videoPlayer);
-                shakaPlayer.addEventListener('error', onErrorEvent);
-            } else {
-                console.error('Browser DRM playback support nahi karta.');
             }
         }
 
-        function onErrorEvent(event) {
-            console.error('Error code', event.detail.code, 'object', event.detail);
-        }
-
-        // Fetch Live Sports JSON Data
-        async function loadChannelsFromAPI() {
+        async function loadData() {
+            // Attempt 1: Fetch JSON Direct
             try {
-                const response = await fetch(API_URL);
-                allChannels = await response.json();
-                renderChannels(allChannels);
+                let res = await fetch(JSON_URL);
+                if (!res.ok) throw new Error("JSON Direct Failed");
+                allChannels = await res.json();
+                if(allChannels.length > 0) return finalizeLoad();
+            } catch(e) { console.log("JSON Direct Failed, trying Proxy..."); }
 
-                if (allChannels.length > 0) {
-                    playChannel(allChannels[0], document.querySelector('.channel-card'));
+            // Attempt 2: Fetch JSON via Proxy
+            try {
+                let res = await fetch(PROXY + encodeURIComponent(JSON_URL));
+                if (!res.ok) throw new Error("JSON Proxy Failed");
+                allChannels = await res.json();
+                if(allChannels.length > 0) return finalizeLoad();
+            } catch(e) { console.log("JSON Proxy Failed, trying M3U..."); }
+
+            // Attempt 3: Fetch M3U as Fallback
+            try {
+                let res = await fetch(PROXY + encodeURIComponent(M3U_URL));
+                let m3uText = await res.text();
+                allChannels = parseM3U(m3uText);
+                if(allChannels.length > 0) return finalizeLoad();
+            } catch(e) { console.log("M3U Failed"); }
+
+            channelsGrid.innerHTML = `<div class="status-msg" style="color:#ff4d4d;">Channels Load Nahi Ho Paye. Stream offline ho sakti hai.</div>`;
+        }
+
+        function parseM3U(m3u) {
+            const lines = m3u.split('\n');
+            const channels = [];
+            let current = {};
+
+            for (let line of lines) {
+                line = line.trim();
+                if (line.startsWith('#EXTINF:')) {
+                    const nameParts = line.split(',');
+                    current.name = nameParts[1] ? nameParts[1].trim() : 'Channel';
+                } else if (line.startsWith('#KODIPROP:inputstream.adaptive.license_key=')) {
+                    const keyData = line.split('=')[1];
+                    if (keyData.includes(':')) {
+                        const [kId, kVal] = keyData.split(':');
+                        current.key_id = kId;
+                        current.key = kVal;
+                    }
+                } else if (line.startsWith('http')) {
+                    current.stream_url = line;
+                    channels.push(current);
+                    current = {};
                 }
-            } catch (error) {
-                channelsGrid.innerHTML = `<div class="status-msg" style="color: #ff4d4d;">Failed to load JSON data from API!</div>`;
-                console.error("API Fetch Error:", error);
+            }
+            return channels;
+        }
+
+        function finalizeLoad() {
+            renderChannels(allChannels);
+            if (allChannels.length > 0) {
+                playChannel(allChannels[0], document.querySelector('.channel-card'));
             }
         }
 
-        // Render Channel Grid
         function renderChannels(channels) {
             channelsGrid.innerHTML = '';
-            if (channels.length === 0) {
-                channelsGrid.innerHTML = `<div class="status-msg">Koi channel nahi mila!</div>`;
-                return;
-            }
-
-            channels.forEach((ch, index) => {
+            channels.forEach((ch, idx) => {
                 const card = document.createElement('div');
-                card.className = `channel-card ${index === 0 ? 'active' : ''}`;
-                
-                const drmTag = (ch.key_id && ch.key) ? '<span class="badge"><i class="fa-solid fa-key"></i> ClearKey DRM</span>' : '<span class="badge">Stream</span>';
-                card.innerHTML = `<i class="fa-solid fa-tv"></i> ${ch.name || 'Channel ' + (index + 1)} ${drmTag}`;
-                
+                card.className = `channel-card ${idx === 0 ? 'active' : ''}`;
+                card.innerHTML = `<i class="fa-solid fa-tv"></i> ${ch.name || 'Channel ' + (idx + 1)}`;
                 card.onclick = () => playChannel(ch, card);
                 channelsGrid.appendChild(card);
             });
         }
 
-        // Channel Play Logic
         async function playChannel(channel, cardElement) {
             currentChannel = channel;
             channelNameLabel.innerText = channel.name || "Live Stream";
 
-            // Update UI Active Card
             document.querySelectorAll('.channel-card').forEach(c => c.classList.remove('active'));
             if (cardElement) cardElement.classList.add('active');
 
             const streamUrl = channel.stream_url || channel.iframe || channel.url || channel.iframeSrc;
 
-            // Handle iframe URLs
-            if (streamUrl.includes('http') && (streamUrl.includes('player') || streamUrl.includes('embed') || streamUrl.includes('pages.dev') || streamUrl.includes('.html'))) {
+            if (streamUrl && (streamUrl.includes('player') || streamUrl.includes('embed') || streamUrl.includes('pages.dev'))) {
                 videoPlayer.style.display = 'none';
                 iframePlayer.style.display = 'block';
                 if(shakaPlayer) await shakaPlayer.unload();
@@ -287,55 +264,42 @@
                 return;
             }
 
-            // Handle DASH / HLS / DRM Direct Stream
             iframePlayer.style.display = 'none';
             iframePlayer.src = '';
             videoPlayer.style.display = 'block';
 
             try {
                 await shakaPlayer.unload();
-
-                // ClearKey DRM Bypass / Key Injector Configuration
                 if (channel.key_id && channel.key) {
                     const clearKeys = {};
                     clearKeys[channel.key_id] = channel.key;
-
-                    shakaPlayer.configure({
-                        drm: {
-                            clearKeys: clearKeys
-                        }
-                    });
+                    shakaPlayer.configure({ drm: { clearKeys: clearKeys } });
                 } else {
                     shakaPlayer.configure({ drm: { clearKeys: {} } });
                 }
-
                 await shakaPlayer.load(streamUrl);
                 videoPlayer.play();
             } catch (e) {
-                console.error('Playback Error:', e);
+                console.error("Playback error:", e);
             }
         }
 
-        // Reload Stream
         function reloadCurrentStream() {
             if (currentChannel) {
-                const activeCard = document.querySelector('.channel-card.active');
-                playChannel(currentChannel, activeCard);
+                playChannel(currentChannel, document.querySelector('.channel-card.active'));
             }
         }
 
-        // Live Search Filter
         function filterChannels() {
             const query = document.getElementById('searchInput').value.toLowerCase();
             const filtered = allChannels.filter(c => (c.name || '').toLowerCase().includes(query));
             renderChannels(filtered);
         }
 
-        // Init App
         document.addEventListener('DOMContentLoaded', () => {
             initShaka();
-            loadChannelsFromAPI();
+            loadData();
         });
     </script>
 </body>
-  </html>
+</html>
