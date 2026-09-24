@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CricZone Live Player (Hybrid M3U + JSON)</title>
+    <title>CricZone Live M3U Player</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.3.5/shaka-player.compiled.js"></script>
 
@@ -138,7 +138,7 @@
         </div>
 
         <div class="player-info">
-            <span class="active-title" id="currentChannelName">Loading Channels...</span>
+            <span class="active-title" id="currentChannelName">Loading Playlist...</span>
             <button onclick="reloadCurrentStream()" style="background:transparent; border:none; color:#fff; cursor:pointer;">
                 <i class="fa-solid fa-rotate-right"></i> Reload
             </button>
@@ -155,7 +155,6 @@
     </div>
 
     <script>
-        const JSON_URL = "https://raw.githubusercontent.com/srhady/willow-event/refs/heads/main/live_sports.json";
         const M3U_URL = "https://raw.githubusercontent.com/srhady/willow-event/refs/heads/main/live_sports.m3u";
         const PROXY = "https://corsproxy.io/?";
 
@@ -175,32 +174,31 @@
             }
         }
 
-        async function loadData() {
-            // Attempt 1: Fetch JSON Direct
+        async function loadM3UData() {
             try {
-                let res = await fetch(JSON_URL);
-                if (!res.ok) throw new Error("JSON Direct Failed");
-                allChannels = await res.json();
-                if(allChannels.length > 0) return finalizeLoad();
-            } catch(e) { console.log("JSON Direct Failed, trying Proxy..."); }
+                // Pehle Direct Fetch
+                let res = await fetch(M3U_URL);
+                if (!res.ok) throw new Error("Direct Fetch Failed");
+                let text = await res.text();
+                allChannels = parseM3U(text);
+            } catch (e) {
+                try {
+                    // Agar Direct Fail Ho To Proxy Se Fetch
+                    let res = await fetch(PROXY + encodeURIComponent(M3U_URL));
+                    let text = await res.text();
+                    allChannels = parseM3U(text);
+                } catch (err) {
+                    channelsGrid.innerHTML = `<div class="status-msg" style="color:#ff4d4d;">M3U Load Nahi Ho Paya!</div>`;
+                    return;
+                }
+            }
 
-            // Attempt 2: Fetch JSON via Proxy
-            try {
-                let res = await fetch(PROXY + encodeURIComponent(JSON_URL));
-                if (!res.ok) throw new Error("JSON Proxy Failed");
-                allChannels = await res.json();
-                if(allChannels.length > 0) return finalizeLoad();
-            } catch(e) { console.log("JSON Proxy Failed, trying M3U..."); }
-
-            // Attempt 3: Fetch M3U as Fallback
-            try {
-                let res = await fetch(PROXY + encodeURIComponent(M3U_URL));
-                let m3uText = await res.text();
-                allChannels = parseM3U(m3uText);
-                if(allChannels.length > 0) return finalizeLoad();
-            } catch(e) { console.log("M3U Failed"); }
-
-            channelsGrid.innerHTML = `<div class="status-msg" style="color:#ff4d4d;">Channels Load Nahi Ho Paye. Stream offline ho sakti hai.</div>`;
+            if (allChannels.length > 0) {
+                renderChannels(allChannels);
+                playChannel(allChannels[0], document.querySelector('.channel-card'));
+            } else {
+                channelsGrid.innerHTML = `<div class="status-msg" style="color:#ff4d4d;">M3U me koi channels nahi mile!</div>`;
+            }
         }
 
         function parseM3U(m3u) {
@@ -211,29 +209,23 @@
             for (let line of lines) {
                 line = line.trim();
                 if (line.startsWith('#EXTINF:')) {
-                    const nameParts = line.split(',');
-                    current.name = nameParts[1] ? nameParts[1].trim() : 'Channel';
-                } else if (line.startsWith('#KODIPROP:inputstream.adaptive.license_key=')) {
-                    const keyData = line.split('=')[1];
-                    if (keyData.includes(':')) {
-                        const [kId, kVal] = keyData.split(':');
+                    const parts = line.split(',');
+                    current.name = parts[1] ? parts[1].trim() : 'Live Channel';
+                } else if (line.includes('license_key=') || line.includes('clearkey=')) {
+                    let keyStr = line.split('=')[1] || '';
+                    keyStr = keyStr.replace(/"/g, '').trim();
+                    if (keyStr.includes(':')) {
+                        const [kId, kVal] = keyStr.split(':');
                         current.key_id = kId;
                         current.key = kVal;
                     }
-                } else if (line.startsWith('http')) {
+                } else if (line.startsWith('http://') || line.startsWith('https://')) {
                     current.stream_url = line;
                     channels.push(current);
                     current = {};
                 }
             }
             return channels;
-        }
-
-        function finalizeLoad() {
-            renderChannels(allChannels);
-            if (allChannels.length > 0) {
-                playChannel(allChannels[0], document.querySelector('.channel-card'));
-            }
         }
 
         function renderChannels(channels) {
@@ -254,7 +246,7 @@
             document.querySelectorAll('.channel-card').forEach(c => c.classList.remove('active'));
             if (cardElement) cardElement.classList.add('active');
 
-            const streamUrl = channel.stream_url || channel.iframe || channel.url || channel.iframeSrc;
+            const streamUrl = channel.stream_url;
 
             if (streamUrl && (streamUrl.includes('player') || streamUrl.includes('embed') || streamUrl.includes('pages.dev'))) {
                 videoPlayer.style.display = 'none';
@@ -280,7 +272,7 @@
                 await shakaPlayer.load(streamUrl);
                 videoPlayer.play();
             } catch (e) {
-                console.error("Playback error:", e);
+                console.error("Playback Error:", e);
             }
         }
 
@@ -298,7 +290,7 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             initShaka();
-            loadData();
+            loadM3UData();
         });
     </script>
 </body>
