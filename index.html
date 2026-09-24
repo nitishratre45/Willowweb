@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CricZone Live M3U Player</title>
+    <title>CricZone Live Sports Player</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.3.5/shaka-player.compiled.js"></script>
 
@@ -158,6 +158,18 @@
         const M3U_URL = "https://raw.githubusercontent.com/srhady/willow-event/refs/heads/main/live_sports.m3u";
         const PROXY = "https://corsproxy.io/?";
 
+        // Extra Manual Sony Channels
+        const customChannels = [
+            {
+                name: "Sony Sports Ten 2 HD (1080p)",
+                stream_url: "https://cloudplay-sonyliv.pages.dev/ten2hd.m3u8"
+            },
+            {
+                name: "Sony Sports Ten 3 Hindi (1080p)",
+                stream_url: "https://cloudplay-sonyliv.pages.dev/ten3.m3u8"
+            }
+        ];
+
         let allChannels = [];
         let shakaPlayer = null;
         let currentChannel = null;
@@ -175,29 +187,31 @@
         }
 
         async function loadM3UData() {
+            let fetchedChannels = [];
+
             try {
-                // Pehle Direct Fetch
                 let res = await fetch(M3U_URL);
                 if (!res.ok) throw new Error("Direct Fetch Failed");
                 let text = await res.text();
-                allChannels = parseM3U(text);
+                fetchedChannels = parseM3U(text);
             } catch (e) {
                 try {
-                    // Agar Direct Fail Ho To Proxy Se Fetch
                     let res = await fetch(PROXY + encodeURIComponent(M3U_URL));
                     let text = await res.text();
-                    allChannels = parseM3U(text);
+                    fetchedChannels = parseM3U(text);
                 } catch (err) {
-                    channelsGrid.innerHTML = `<div class="status-msg" style="color:#ff4d4d;">M3U Load Nahi Ho Paya!</div>`;
-                    return;
+                    console.log("M3U fetch failed, loading custom channels only.");
                 }
             }
+
+            // Combine M3U Channels + Sony Channels
+            allChannels = [...fetchedChannels, ...customChannels];
 
             if (allChannels.length > 0) {
                 renderChannels(allChannels);
                 playChannel(allChannels[0], document.querySelector('.channel-card'));
             } else {
-                channelsGrid.innerHTML = `<div class="status-msg" style="color:#ff4d4d;">M3U me koi channels nahi mile!</div>`;
+                channelsGrid.innerHTML = `<div class="status-msg" style="color:#ff4d4d;">Koi channel load nahi hua!</div>`;
             }
         }
 
@@ -248,7 +262,7 @@
 
             const streamUrl = channel.stream_url;
 
-            if (streamUrl && (streamUrl.includes('player') || streamUrl.includes('embed') || streamUrl.includes('pages.dev'))) {
+            if (streamUrl && (streamUrl.includes('player') || streamUrl.includes('embed') || streamUrl.includes('pages.dev') && !streamUrl.endsWith('.m3u8'))) {
                 videoPlayer.style.display = 'none';
                 iframePlayer.style.display = 'block';
                 if(shakaPlayer) await shakaPlayer.unload();
